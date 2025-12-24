@@ -22,49 +22,49 @@ window.onload = function() {
     let score = 0;
     let lives = 3;
     let level = 1;
+    let correctWordsInLevel = 0; // Track correct words for level progression
+    let wordsNeededForNextLevel = 20; // Start with 20 for level 1
     let spawnTimer;
     let scoreText;
     let livesText;
     let levelText;
     let inputText;
+    let progressText;
     let isFrozen = false;
     let freezeTimer = null;
+    let wordData = null; // Will store loaded word data
+    let progressBar; // Progress bar graphics
+    let progressBarBg; // Progress bar background
 
     // Power-up collection system
-    let collectedPowerUps = []; // Array to store collected power-ups (max 3)
-    let powerUpSlots = []; // Visual slots for power-ups
-
-    // Word list
-    let wordList = [
-        'pixel', 'retro', 'arcade', 'game', 'code', 'type', 'fast', 'score',
-        'combo', 'power', 'blast', 'shield',
-        'speed', 'laser', 'burst', 'storm', 'thunder', 'freeze', 'boost'
-    ];
+    let collectedPowerUps = [];
+    let powerUpSlots = [];
 
     function preload() {
-        // PLACEHOLDER: Load your assets here
+        // Load the words.json file
+        this.load.json('words', 'assets/words.json');
     }
 
     function create() {
-        // PLACEHOLDER: Add background image
-        // this.add.image(400, 300, 'background');
+        // Load word data
+        wordData = this.cache.json.get('words');
 
         const graphics = this.add.graphics();
 
         //Left - ENTIRE side panel
-        graphics.lineStyle(3, 0x00ffff, 1); // Cyan outline
-        graphics.strokeRect(0, 0, 200, 800); // x, y, width, height
+        graphics.lineStyle(3, 0x00ffff, 1);
+        graphics.strokeRect(0, 0, 200, 800);
 
         // Left - powerup section
-        graphics.lineStyle(3, 0xffff00, 1); // Cyan outline
-        graphics.strokeRect(20, 20, 160, 250); // x, y, width, height
+        graphics.lineStyle(3, 0xffff00, 1);
+        graphics.strokeRect(20, 20, 160, 250);
         
         // Left - lives section
-        graphics.lineStyle(3, 0xff00ff, 1); // Cyan outline
-        graphics.strokeRect(20, 350, 160, 400); // x, y, width, height
+        graphics.lineStyle(3, 0xff00ff, 1);
+        graphics.strokeRect(20, 350, 160, 400);
 
         //Right - ENTIRE panel
-        graphics.lineStyle(3, 0xffff00, 1); // Yellow outline
+        graphics.lineStyle(3, 0xffff00, 1);
         graphics.strokeRect(600, 0, 200, 800);
 
         //Right - Level section
@@ -103,21 +103,20 @@ window.onload = function() {
             strokeThickness: 4
         }).setOrigin(0.5);
 
+        // Power-up slots
         for (let i = 0; i < 6; i++) {
-            const y = 245 - (i * 40);  // Start from bottom, go up
+            const y = 245 - (i * 40);
             
-            // Slot background
             const slotBg = this.add.rectangle(100, y, 150, 35, 0x2a2a2a);
             slotBg.setStrokeStyle(2, 0x555555);
             
-            // Slot text (initially hidden)
             const slotText = this.add.text(100, y, '', {
                 fontSize: '14px',
                 fontFamily: 'monospace',
                 color: '#ffffff',
                 fontStyle: 'bold'
             }).setOrigin(0.5);
-            slotText.setVisible(false);  // Hide initially
+            slotText.setVisible(false);
             
             powerUpSlots.push({
                 bg: slotBg,
@@ -139,6 +138,26 @@ window.onload = function() {
             fontFamily: 'monospace',
             color: '#ff0000'
         });
+
+        // Progress bar background (just below lives text)
+        progressBarBg = this.add.graphics();
+        progressBarBg.fillStyle(0x333333, 1);
+        progressBarBg.fillRect(30, 390, 140, 20);
+        progressBarBg.lineStyle(2, 0x00ff00, 1);
+        progressBarBg.strokeRect(30, 390, 140, 20);
+
+        // Progress bar fill
+        progressBar = this.add.graphics();
+
+        // Progress text (shows X/Y words) - Initialize BEFORE calling updateProgressBar
+        progressText = this.add.text(100, 420, '0/20', {
+            fontSize: '16px',
+            fontFamily: 'monospace',
+            color: '#00ff00'
+        }).setOrigin(0.5);
+
+        // Now it's safe to call updateProgressBar
+        updateProgressBar.call(this);
 
         // Level display
         levelText = this.add.text(620, 20, 'LEVEL: 1', {
@@ -178,7 +197,7 @@ window.onload = function() {
         if (!isFrozen) {
             words.forEach((wordObj, index) => {
                 wordObj.y += wordObj.speed;
-                wordObj.container.setY(wordObj.y);  // Move container, not text
+                wordObj.container.setY(wordObj.y);
 
                 // Check if word reached bottom
                 if (wordObj.y > 730) {
@@ -189,7 +208,29 @@ window.onload = function() {
         }
     }
 
+    function updateProgressBar() {
+        progressBar.clear();
+        
+        const progress = correctWordsInLevel / wordsNeededForNextLevel;
+        const barWidth = 136 * progress; // 140 - 4 for padding
+        
+        progressBar.fillStyle(0x00ff00, 1);
+        progressBar.fillRect(32, 392, barWidth, 16);
+        
+        progressText.setText(`${correctWordsInLevel}/${wordsNeededForNextLevel}`);
+    }
+
     function spawnWord() {
+        // Get word list based on current level
+        let wordList;
+        if (level === 1) {
+            wordList = wordData.level1;
+        } else if (level === 2) {
+            wordList = wordData.level2;
+        } else {
+            wordList = wordData.level3;
+        }
+
         const word = wordList[Math.floor(Math.random() * wordList.length)];
         
         const types = [
@@ -211,18 +252,15 @@ window.onload = function() {
         const x = Phaser.Math.Between(260, 540);
         const y = 70;
 
-        // Create a container to hold background and text
         const container = this.add.container(x, y);
 
-        // Create rectangle background
         const textBg = this.add.rectangle(0, 0, 80, 30, 0x000000, 0.5);
         textBg.setStrokeStyle(2, parseInt(type.color.replace('#', '0x')));
 
-        // Create TWO text objects for highlighting
         const typedText = this.add.text(0, 0, '', {
             fontSize: '18px',
             fontFamily: 'monospace',
-            color: '#fff200ff',  // Yellow for typed portion
+            color: '#fff200ff',
             stroke: '#000000',
             strokeThickness: 3
         }).setOrigin(0, 0.5);
@@ -235,12 +273,10 @@ window.onload = function() {
             strokeThickness: 3
         }).setOrigin(0, 0.5);
 
-        // Position them to align properly
         const fullWidth = untypedText.width;
         typedText.setX(-fullWidth / 2);
         untypedText.setX(-fullWidth / 2);
 
-        // Add to container
         container.add([textBg, typedText, untypedText]);
 
         words.push({
@@ -252,7 +288,7 @@ window.onload = function() {
             y: y,
             speed: 0.5 + (level * 0.1),
             type: type.name,
-            matchedLength: 0  // Track how many letters match
+            matchedLength: 0
         });
     }
 
@@ -283,19 +319,16 @@ window.onload = function() {
             const word = wordObj.word;
             let matchedLength = 0;
 
-            // Check if current input matches the beginning of this word
             if (currentInput.length > 0 && word.startsWith(currentInput)) {
                 matchedLength = currentInput.length;
             }
 
-            // Update the typed (green) and untyped portions
             const typedPortion = word.substring(0, matchedLength);
             const untypedPortion = word.substring(matchedLength);
 
             wordObj.typedText.setText(typedPortion);
             wordObj.untypedText.setText(untypedPortion);
 
-            // Reposition untyped text to follow typed text
             const fullWidth = wordObj.typedText.width + wordObj.untypedText.width;
             wordObj.typedText.setX(-fullWidth / 2);
             wordObj.untypedText.setX(-fullWidth / 2 + wordObj.typedText.width);
@@ -319,26 +352,21 @@ window.onload = function() {
             }
         }
 
-        // If no match found, shake the camera + DON'T clear input
         if (!foundMatch) {
             this.cameras.main.shake(300, 0.01);
         }
     }
 
-    // Collects power-ups instead of using them immediately
     function handleCorrectWord(index) {
         const wordObj = words[index];
         let points = 10;
         
-        // NEW: Check if it's a power-up word and collect it
         if (wordObj.type !== 'normal') {
-            // Collect the power-up (max 5)
             if (collectedPowerUps.length < 6) {
                 collectedPowerUps.push(wordObj.type);
                 updatePowerUpDisplay.call(this);
             }
             
-            // Power-up points
             switch(wordObj.type) {
                 case 'fire':
                     points = 50;
@@ -358,15 +386,108 @@ window.onload = function() {
         score += points;
         scoreText.setText('SCORE: ' + score);
 
+        // Increment progress
+        correctWordsInLevel++;
+        updateProgressBar.call(this);
+
         createExplosion.call(this, wordObj.x, wordObj.y, wordObj.type);
         removeWord.call(this, index);
 
-        if (score > 0 && score % 100 === 0) {
-            levelUp.call(this);
+        // Check if level is complete
+        if (correctWordsInLevel >= wordsNeededForNextLevel) {
+            completeLevel.call(this);
         }
     }
 
-    // Update the visual power-up slots
+    function completeLevel() {
+        // Pause the game
+        spawnTimer.paused = true;
+        isFrozen = true;
+
+        // Create semi-transparent overlay
+        const overlay = this.add.rectangle(400, 400, 800, 800, 0x000000, 0.7);
+
+        // Create dialog container
+        const dialogBg = this.add.rectangle(400, 400, 500, 300, 0x222222);
+        dialogBg.setStrokeStyle(4, 0x00ffff);
+
+        // Level complete text
+        const titleText = this.add.text(400, 300, `LEVEL ${level} COMPLETE!`, {
+            fontSize: '36px',
+            fontFamily: 'monospace',
+            color: '#00ff00',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Current score text
+        const currentScoreText = this.add.text(400, 360, `Current Score: ${score}`, {
+            fontSize: '24px',
+            fontFamily: 'monospace',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        // Continue button
+        const buttonBg = this.add.rectangle(400, 450, 200, 60, 0x00ff00);
+        buttonBg.setStrokeStyle(3, 0xffffff);
+        buttonBg.setInteractive({ useHandCursor: true });
+
+        const buttonText = this.add.text(400, 450, 'CONTINUE', {
+            fontSize: '24px',
+            fontFamily: 'monospace',
+            color: '#000000',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Button hover effects
+        buttonBg.on('pointerover', () => {
+            buttonBg.setFillStyle(0x00cc00);
+        });
+
+        buttonBg.on('pointerout', () => {
+            buttonBg.setFillStyle(0x00ff00);
+        });
+
+        buttonBg.on('pointerdown', () => {
+            // Remove dialog elements
+            overlay.destroy();
+            dialogBg.destroy();
+            titleText.destroy();
+            currentScoreText.destroy();
+            buttonBg.destroy();
+            buttonText.destroy();
+
+            // Advance to next level
+            advanceToNextLevel.call(this);
+        });
+    }
+
+    function advanceToNextLevel() {
+        level++;
+        correctWordsInLevel = 0;
+
+        // Set words needed for next level
+        if (level === 2) {
+            wordsNeededForNextLevel = 25;
+        } else if (level === 3) {
+            wordsNeededForNextLevel = 30;
+        } else {
+            // Level 3 completed - could add win condition here
+            wordsNeededForNextLevel = 30;
+        }
+
+        levelText.setText('LEVEL: ' + level);
+        updateProgressBar.call(this);
+        
+        this.cameras.main.flash(200, 0, 255, 0);
+        
+        // Adjust spawn speed
+        spawnTimer.delay = Math.max(1000, 2000 - (level * 100));
+        
+        // Resume game
+        spawnTimer.paused = false;
+        isFrozen = false;
+    }
+
     function updatePowerUpDisplay() {
         for (let i = 0; i < 6; i++) {
             if (i < collectedPowerUps.length) {
@@ -378,17 +499,14 @@ window.onload = function() {
                     'slow': { color: 0xff44ff, text: '#ffffff', name: 'SLOW' }
                 };
                 
-                // Fill with power-up color
                 powerUpSlots[i].bg.setFillStyle(colors[powerType].color);
                 powerUpSlots[i].bg.setStrokeStyle(2, colors[powerType].color);
                 
-                // Show text with power-up name
                 powerUpSlots[i].text.setText(colors[powerType].name);
                 powerUpSlots[i].text.setColor(colors[powerType].text);
                 powerUpSlots[i].text.setVisible(true);
                 powerUpSlots[i].filled = true;
             } else {
-                // Empty slot - dark gray
                 powerUpSlots[i].bg.setFillStyle(0x2a2a2a);
                 powerUpSlots[i].bg.setStrokeStyle(2, 0x555555);
                 powerUpSlots[i].text.setVisible(false);
@@ -397,7 +515,6 @@ window.onload = function() {
         }
     }
 
-    // NEW: Use a collected power-up
     function usePowerUp(powerType) {
         switch(powerType) {
             case 'fire':
@@ -501,7 +618,7 @@ window.onload = function() {
 
     function removeWord(index) {
         if (words[index]) {
-            words[index].container.destroy();  // Destroy container (destroys children too)
+            words[index].container.destroy();
             words.splice(index, 1);
         }
     }
@@ -511,19 +628,6 @@ window.onload = function() {
         livesText.setText('LIVES: ' + lives + '%');
 
         this.cameras.main.flash(200, 255, 0, 0);
-
-        // if (lives <= 0) {
-        //     gameOver.call(this);
-        // }
-    }
-
-    function levelUp() {
-        level++;
-        levelText.setText('LEVEL: ' + level);
-        
-        this.cameras.main.flash(200, 0, 255, 0);
-        
-        spawnTimer.delay = Math.max(1000, 2000 - (level * 100));
     }
 
     function gameOver() {
