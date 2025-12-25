@@ -4,6 +4,7 @@ window.onload = function() {
         type: Phaser.AUTO,
         width: 800,
         height: 800,
+        pixelArt: true,
         physics: {
             default: 'arcade'
         },
@@ -40,6 +41,10 @@ window.onload = function() {
     let pauseMenu = null;
     let pauseButton = null;
     let isFreezeActive = false;
+    let totalCharactersTyped = 0;
+    let typingStartTime = null;
+    let currentWPM = 0;
+    let wpmText;
 
     // Power-up collection system
     let collectedPowerUps = [];
@@ -50,6 +55,9 @@ window.onload = function() {
 
         //left
         this.load.image('powerup_shelf', 'assets/left/bookcase_powerup.png');
+        this.load.image('shelf_bk', 'assets/left/bookcase_bk.png');
+        this.load.image('progress_bk', 'assets/left/progress_bk.png');
+        this.load.image('panel_divider', 'assets/left/leftPanelDivider.png');
 
         // middle
         this.load.image('bk', 'assets/middle/bookcase_bk.png');
@@ -58,13 +66,22 @@ window.onload = function() {
         this.load.image('word_ice', 'assets/middle/word/word_ice_bk.png');
         this.load.image('word_heal', 'assets/middle/word/word_heal_bk.png');
         this.load.image('word_slow', 'assets/middle/word/word_slow_bk.png');
+        this.load.image('middle_platform', 'assets/middle/platform.png');
+        this.load.image('typing_table', 'assets/middle/typing_table.png');
+        this.load.image('typing_bk', 'assets/middle/typing_bk.png'); // TODO to implement the grey placeholder
+        // TODO add books to indicate the lives lefft
+        
 
         // right panel
         this.load.image('right_bk_curtain', 'assets/right/curtain_1.png');
         this.load.image('right_bk_window', 'assets/right/curtain_2.png');
         this.load.image('right_bk_sky', 'assets/right/curtain_3.png');
-
-
+        this.load.image('right_bk_menu', 'assets/right/menu_bk.png');
+        this.load.spritesheet('pause_button', 'assets/right/pause_btn.png', {
+            frameWidth: 15,  // Adjust to your actual button width in pixels
+            frameHeight: 15  // Adjust to your actual button height in pixels
+        });
+        this.load.image('null_btn', 'assets/right/null_btn.png');
     }
 
     function create() {
@@ -79,7 +96,6 @@ window.onload = function() {
         showStartScreen.call(this);
     }
 
-    // NEW: Start screen function
     function showStartScreen() {
         // Create semi-transparent overlay
         const overlay = this.add.rectangle(400, 400, 800, 800, 0x000000, 0.9);
@@ -159,14 +175,28 @@ window.onload = function() {
         gameStarted = true;
 
         // Left
+        const leftBkPanel = this.add.image(100, 500, 'progress_bk');
+        leftBkPanel.setDepth(-1);
+        leftBkPanel.setScale(3);
+        const leftShelfBk = this.add.image(100, 160, 'shelf_bk');
+        leftShelfBk.setDepth(-1);
         const leftPowerUpBk = this.add.image(100, 145, 'powerup_shelf');
         leftPowerUpBk.setDisplaySize(180, 255);
         leftPowerUpBk.setDepth(-1);
+        const panelDivider = this.add.image(100, 310, 'panel_divider');
+        panelDivider.setDepth(-1);
+        // TODO - tile to span across the panel width
 
         // Middle
         const middleBk = this.add.image(400, 400, 'bk');
         middleBk.setDepth(-1);
         middleBk.setScale(1.5);
+        const middlePlatform = this.add.image(400, 780, 'middle_platform');
+        middlePlatform.setDepth(-1);
+        middlePlatform.setScale(2);
+        // TODO - tile to span across entire bottom area
+        const typingTable = this.add.image(400, 720, 'typing_table');
+        typingTable.setScale(2);
 
         // Right
         const rightBkSky = this.add.image(700, 400, 'right_bk_sky');
@@ -175,9 +205,13 @@ window.onload = function() {
         rightBkSky.setDepth(-1);
         rightBkWindow.setDepth(-1);
         rightBkCurtain.setDepth(-1);
-        rightBkSky.setScale(1.5);
-        rightBkWindow.setScale(1.5);
-        rightBkCurtain.setScale(1.5);
+        rightBkSky.setDisplaySize(200, 800);
+        rightBkWindow.setDisplaySize(200, 800);
+        rightBkCurtain.setDisplaySize(200, 800);
+        const rightBkMenu = this.add.image(700, 680, 'right_bk_menu');
+        rightBkMenu.setDepth(-1);
+        rightBkMenu.setScale(3);
+        
 
         const graphics = this.add.graphics();
 
@@ -208,33 +242,44 @@ window.onload = function() {
         //Right - Typing speed section (KIV)
         graphics.lineStyle(3, 0x00ff00, 1);
         graphics.strokeRect(620, 180, 160, 50);
+        wpmText = this.add.text(620, 180, 'WPM: 0', {
+            fontSize: '20px',
+            fontFamily: 'Pixuf',
+            color: '#00ff00'
+        });
 
         //Right - Menu button
-        pauseButton = this.add.rectangle(660, 720, 40, 40, 0x444444);
-        pauseButton.setStrokeStyle(3, 0x00ff00);
+        pauseButton = this.add.sprite(660, 720, 'pause_button', 0);
+        pauseButton.setDisplaySize(40, 40);
         pauseButton.setInteractive({ useHandCursor: true });
-        this.add.text(660, 720, 'P', {
-            fontSize: '24px',
-            fontFamily: 'Pixuf',
-            color: '#00ff00',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        // Pause button click handler
+
+        // Hover effect - slightly highlight (scale up)
+        pauseButton.on('pointerover', () => {
+            if (!isPaused) {
+                pauseButton.setTint(0xcccccc); // Optional: slight gray tint for hover
+            }
+        });
+
+        // Mouse out - return to normal
+        pauseButton.on('pointerout', () => {
+            pauseButton.clearTint();
+            pauseButton.setFrame(0); // Ensure it's back to unpressed state
+        });
+
+        // Press down - show pressed frame
         pauseButton.on('pointerdown', () => {
+            pauseButton.setFrame(1); // Pressed state
+        });
+
+        // Release - trigger pause and return to normal
+        pauseButton.on('pointerup', () => {
+            pauseButton.setFrame(0); // Back to unpressed
             togglePause.call(this);
         });
 
-        // Hover effects
-        pauseButton.on('pointerover', () => {
-            pauseButton.setFillStyle(0x00ff00);
-        });
-        pauseButton.on('pointerout', () => {
-            pauseButton.setFillStyle(0x444444);
-        });
-
         //Right - Settings(?) button
-        graphics.lineStyle(3, 0x00ff00, 1);
-        graphics.strokeRect(720, 700, 40, 40);
+        const settingsButton = this.add.image(740, 720, 'null_btn');
+        settingsButton.setDisplaySize(40, 40);
 
         //middle - play area outline (where words fall)
         graphics.lineStyle(3, 0xff00ff, 1);
@@ -254,10 +299,12 @@ window.onload = function() {
 
         // Power-up slots
         for (let i = 0; i < 6; i++) {
-            const y = 50 + (i * 40);
+            const y = 245 - (i * 35);
             
-            // const slotBg = this.add.rectangle(100, y, 150, 35, 0x2a2a2a);
-            // slotBg.setStrokeStyle(2, 0x555555);
+            // Create image with proper size to fit bookshelf
+            const slotImage = this.add.image(100, y, 'word_normal');
+            slotImage.setDisplaySize(139, 30);
+            slotImage.setVisible(false);
             
             const slotText = this.add.text(100, y, '', {
                 fontSize: '14px',
@@ -268,7 +315,7 @@ window.onload = function() {
             slotText.setVisible(false);
             
             powerUpSlots.push({
-                // bg: slotBg,
+                image: slotImage,
                 text: slotText,
                 filled: false
             });
@@ -494,11 +541,11 @@ window.onload = function() {
         const word = wordList[Math.floor(Math.random() * wordList.length)];
         
         const types = [
-            { name: 'normal', color: '#ffffff' },
-            { name: 'fire', color: '#ff4444' },
-            { name: 'ice', color: '#4444ff' },
+            { name: 'normal', color: '#ffffff' }, // Removed image property
+            { name: 'fire', color: '#ff5234ff' },
+            { name: 'ice', color: '#44efffff' },
             { name: 'heal', color: '#44ff44' },
-            { name: 'slow', color: '#ff44ff' }
+            { name: 'slow', color: '#cf67ffff' }
         ];
         
         const rand = Math.random();
@@ -514,23 +561,23 @@ window.onload = function() {
 
         const container = this.add.container(x, y);
 
-        const textBg = this.add.rectangle(0, 0, 80, 30, 0x000000, 0.5);
-        textBg.setStrokeStyle(2, parseInt(type.color.replace('#', '0x')));
+        const textBg = this.add.image(0, 0, 'word_normal');
+        textBg.setDisplaySize(100, 40);
 
         const typedText = this.add.text(0, 0, '', {
-            fontSize: '18px',
+            fontSize: '14px',
             fontFamily: 'Pixuf',
             color: '#fff200ff',
             stroke: '#000000',
-            strokeThickness: 3
+            strokeThickness: 2
         }).setOrigin(0, 0.5);
 
         const untypedText = this.add.text(0, 0, word, {
-            fontSize: '18px',
+            fontSize: '14px',
             fontFamily: 'Pixuf',
-            color: type.color,
+            color: type.color, // Color still differentiates power-up type
             stroke: '#000000',
-            strokeThickness: 3
+            strokeThickness: 2
         }).setOrigin(0, 0.5);
 
         const fullWidth = untypedText.width;
@@ -541,7 +588,6 @@ window.onload = function() {
 
         const baseSpeed = 0.5 + (level * 0.1);
         
-        // NEW: Check if any existing words are slowed (have slowedAt property)
         const isSlowActive = words.some(w => w.slowedAt !== undefined);
         const actualSpeed = isSlowActive ? baseSpeed * 0.5 : baseSpeed;
 
@@ -570,6 +616,11 @@ window.onload = function() {
     function handleKeyPress(event) {
         const key = event.key;
 
+        // Start timing on first keystroke
+        if (typingStartTime === null && key.length === 1 && key.match(/[a-z]/i)) {
+            typingStartTime = this.time.now;
+        }
+
         if (key === 'Backspace') {
             currentInput = currentInput.slice(0, -1);
             inputText.setText(currentInput);
@@ -586,6 +637,23 @@ window.onload = function() {
             currentInput += key.toLowerCase();
             inputText.setText(currentInput);
             updateWordHighlights.call(this);
+            
+            // Track character typed
+            totalCharactersTyped++;
+            updateWPM.call(this);
+        }
+    }
+
+    function updateWPM() {
+        if (typingStartTime === null) return;
+        
+        const currentTime = this.time.now;
+        const timeElapsedMinutes = (currentTime - typingStartTime) / 60000; // Convert ms to minutes
+        
+        if (timeElapsedMinutes > 0) {
+            // WPM = (total characters / 5) / time in minutes
+            currentWPM = Math.round((totalCharactersTyped / 5) / timeElapsedMinutes);
+            wpmText.setText('WPM: ' + currentWPM);
         }
     }
 
@@ -707,6 +775,13 @@ window.onload = function() {
         const dialogBg = this.add.rectangle(400, 400, 500, 300, 0x222222);
         dialogBg.setStrokeStyle(4, 0x00ffff);
 
+        // Provide WPM feedback
+        const wpmText = this.add.text(400, 400, `Typing Speed: ${currentWPM} WPM`, {
+            fontSize: '20px',
+            fontFamily: 'Pixuf',
+            color: '#00ff00'
+        }).setOrigin(0.5);
+
         // Level complete text
         const titleText = this.add.text(400, 300, `LEVEL ${level} COMPLETE!`, {
             fontSize: '36px',
@@ -751,6 +826,7 @@ window.onload = function() {
             currentScoreText.destroy();
             buttonBg.destroy();
             buttonText.destroy();
+            wpmText.destroy();
 
             // Advance to next level
             advanceToNextLevel.call(this);
@@ -760,6 +836,11 @@ window.onload = function() {
     function advanceToNextLevel() {
         level++;
         correctWordsInLevel = 0;
+        totalCharactersTyped = 0;
+        typingStartTime = this.time.now;
+        currentWPM = 0;
+        collectedPowerUps = [];
+        updatePowerUpDisplay.call(this);
 
         // Set words needed for next level
         if (level === 2) {
@@ -788,23 +869,31 @@ window.onload = function() {
         for (let i = 0; i < 6; i++) {
             if (i < collectedPowerUps.length) {
                 const powerType = collectedPowerUps[i];
-                const colors = {
-                    'fire': { color: 0xff4444, text: '#ffffff', name: 'FIRE' },
-                    'ice': { color: 0x4444ff, text: '#ffffff', name: 'ICE' },
-                    'heal': { color: 0x44ff44, text: '#ffffff', name: 'HEAL' },
-                    'slow': { color: 0xff44ff, text: '#ffffff', name: 'SLOW' }
+                const imageKeys = {
+                    'fire': 'word_fire',
+                    'ice': 'word_ice',
+                    'heal': 'word_heal',
+                    'slow': 'word_slow'
                 };
                 
-                powerUpSlots[i].bg.setFillStyle(colors[powerType].color);
-                powerUpSlots[i].bg.setStrokeStyle(2, colors[powerType].color);
+                const names = {
+                    'fire': 'FIRE',
+                    'ice': 'ICE',
+                    'heal': 'HEAL',
+                    'slow': 'SLOW'
+                };
                 
-                powerUpSlots[i].text.setText(colors[powerType].name);
-                powerUpSlots[i].text.setColor(colors[powerType].text);
+                // Set the appropriate image
+                powerUpSlots[i].image.setTexture(imageKeys[powerType]);
+                powerUpSlots[i].image.setDisplaySize(139, 30); // Ensure consistent size
+                powerUpSlots[i].image.setVisible(true);
+                
+                powerUpSlots[i].text.setText(names[powerType]);
+                powerUpSlots[i].text.setColor('#000000ff');
                 powerUpSlots[i].text.setVisible(true);
                 powerUpSlots[i].filled = true;
             } else {
-                powerUpSlots[i].bg.setFillStyle(0x2a2a2a);
-                powerUpSlots[i].bg.setStrokeStyle(2, 0x555555);
+                powerUpSlots[i].image.setVisible(false);
                 powerUpSlots[i].text.setVisible(false);
                 powerUpSlots[i].filled = false;
             }
@@ -1018,6 +1107,12 @@ window.onload = function() {
 
         // Create semi-transparent overlay
         const overlay = this.add.rectangle(400, 400, 800, 800, 0x000000, 0.8);
+
+        const wpmText = this.add.text(400, 400, `Typing Speed: ${currentWPM} WPM`, {
+            fontSize: '20px',
+            fontFamily: 'Pixuf',
+            color: '#00ff00'
+        }).setOrigin(0.5);
 
         this.add.text(400, 300, 'GAME OVER', {
             fontSize: '64px',
