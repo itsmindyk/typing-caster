@@ -46,6 +46,21 @@ window.onload = function() {
     let currentWPM = 0;
     let wpmText;
 
+    // Progress/life tracking
+    let lifeBarGraphics;
+    let progressBarGraphics;
+    let lifeBarOutline;
+    let progressBarOutline;
+
+    // Bar configuration
+    const MAX_SEGMENTS = 10;
+    const BAR_WIDTH = 60;
+    const BAR_HEIGHT = 350;
+    const BAR_SPACING = 10;
+    const LEFT_BAR_X = 45;  // Lives bar (left side)
+    const RIGHT_BAR_X = 125; // Progress bar (right side)
+    const BARS_Y = 390;
+
     // Power-up collection system
     let collectedPowerUps = [];
     let powerUpSlots = [];
@@ -57,7 +72,7 @@ window.onload = function() {
         this.load.image('powerup_shelf', 'assets/left/bookcase_powerup.png');
         this.load.image('shelf_bk', 'assets/left/bookcase_bk.png');
         this.load.image('progress_bk', 'assets/left/progress_bk.png');
-        this.load.image('panel_divider', 'assets/left/leftPanelDivider.png');
+        this.load.image('panel_divider', 'assets/left/left_panel_divider.png');
 
         // middle
         this.load.image('bk', 'assets/middle/bookcase_bk.png');
@@ -183,15 +198,15 @@ window.onload = function() {
         const leftPowerUpBk = this.add.image(100, 145, 'powerup_shelf');
         leftPowerUpBk.setDisplaySize(180, 255);
         leftPowerUpBk.setDepth(-1);
-        const panelDivider = this.add.image(100, 310, 'panel_divider');
+        const panelDivider = this.add.tileSprite(100, 310, 180, 20, 'panel_divider');
         panelDivider.setDepth(-1);
-        // TODO - tile to span across the panel width
+        panelDivider.setScale(1.5);
 
         // Middle
         const middleBk = this.add.image(400, 400, 'bk');
         middleBk.setDepth(-1);
         middleBk.setScale(1.5);
-        const middlePlatform = this.add.image(400, 780, 'middle_platform');
+        const middlePlatform = this.add.tileSprite(400, 780, 200, 40, 'middle_platform');
         middlePlatform.setDepth(-1);
         middlePlatform.setScale(2);
         // TODO - tile to span across entire bottom area
@@ -329,28 +344,33 @@ window.onload = function() {
         });
 
         // Lives display
-        livesText = this.add.text(20, 350, 'LIVES: 0%', {
-            fontSize: '20px',
-            fontFamily: 'Pixuf',
-            color: '#ff0000'
-        });
+        // livesText = this.add.text(20, 350, 'LIVES: 0%', {
+        //     fontSize: '20px',
+        //     fontFamily: 'Pixuf',
+        //     color: '#ff0000'
+        // });
 
-        // Progress bar background (just below lives text)
-        progressBarBg = this.add.graphics();
-        progressBarBg.fillStyle(0x333333, 1);
-        progressBarBg.fillRect(30, 390, 140, 20);
-        progressBarBg.lineStyle(2, 0x00ff00, 1);
-        progressBarBg.strokeRect(30, 390, 140, 20);
+        createDualBars.call(this);
 
-        // Progress bar fill
-        progressBar = this.add.graphics();
+        // // Progress bar background (just below lives text)
+        // progressBarBg = this.add.graphics();
 
-        // Progress text (shows X/Y words)
-        progressText = this.add.text(100, 420, '0/20', {
-            fontSize: '16px',
-            fontFamily: 'Pixuf',
-            color: '#00ff00'
-        }).setOrigin(0.5);
+        // // Progress bar background (just below lives text)
+        // progressBarBg = this.add.graphics();
+        // progressBarBg.fillStyle(0x333333, 1);
+        // progressBarBg.fillRect(30, 390, 140, 20);
+        // progressBarBg.lineStyle(2, 0x00ff00, 1);
+        // progressBarBg.strokeRect(30, 390, 140, 20);
+
+        // // Progress bar fill
+        // progressBar = this.add.graphics();
+
+        // // Progress text (shows X/Y words)
+        // progressText = this.add.text(100, 420, '0/20', {
+        //     fontSize: '16px',
+        //     fontFamily: 'Pixuf',
+        //     color: '#00ff00'
+        // }).setOrigin(0.5);
 
         updateProgressBar.call(this);
 
@@ -909,8 +929,9 @@ window.onload = function() {
                 freezeWords.call(this);
                 break;
             case 'heal':
-                lives = 0; // Reset lives to 0%
-                livesText.setText('LIVES: 0%');
+                lives = 0;
+                // livesText.setText('LIVES: 0%');
+                resetLifeBar.call(this);
                 break;
             case 'slow':
                 slowDownWords.call(this);
@@ -1083,13 +1104,143 @@ window.onload = function() {
 
     function loseLife() {
         lives++;
-        livesText.setText('LIVES: ' + lives + '%');
-
-        this.cameras.main.flash(200, 255, 0, 0);
+        // livesText.setText('LIVES: ' + lives + '%');
+        updateLifeBar.call(this);
+        // this.cameras.main.flash(200, 255, 0, 0);
         
         // if (lives >= 100) {
         //     gameOver.call(this);
         // }
+    }
+
+    function createDualBars() {
+        // === LEFT BAR - LIVES (RED) ===
+        lifeBarOutline = this.add.graphics();
+        lifeBarOutline.lineStyle(2, 0xff0000, 1); // Red outline
+        lifeBarOutline.strokeRect(LEFT_BAR_X, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
+        
+        // Draw horizontal segment dividers for lives bar
+        lifeBarOutline.lineStyle(1, 0x666666, 0.5);
+        for (let i = 1; i < MAX_SEGMENTS; i++) {
+            const y = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
+            lifeBarOutline.lineBetween(LEFT_BAR_X, y, LEFT_BAR_X + BAR_WIDTH, y);
+        }
+        
+        // Create the lives fill graphics
+        lifeBarGraphics = this.add.graphics();
+        
+        // === RIGHT BAR - PROGRESS (GREEN) ===
+        progressBarOutline = this.add.graphics();
+        progressBarOutline.lineStyle(2, 0x00ff00, 1); // Green outline
+        progressBarOutline.strokeRect(RIGHT_BAR_X, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
+        
+        // Draw horizontal segment dividers for progress bar
+        progressBarOutline.lineStyle(1, 0x666666, 0.5);
+        for (let i = 1; i < MAX_SEGMENTS; i++) {
+            const y = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
+            progressBarOutline.lineBetween(RIGHT_BAR_X, y, RIGHT_BAR_X + BAR_WIDTH, y);
+        }
+        
+        // Create the progress fill graphics
+        progressBarGraphics = this.add.graphics();
+        
+        // Add labels above each bar
+        this.add.text(LEFT_BAR_X + BAR_WIDTH/2, BARS_Y - 15, 'LIVES', {
+            fontSize: '14px',
+            fontFamily: 'Pixuf',
+            color: '#ff0000'
+        }).setOrigin(0.5);
+        
+        this.add.text(RIGHT_BAR_X + BAR_WIDTH/2, BARS_Y - 15, 'PROGRESS', {
+            fontSize: '14px',
+            fontFamily: 'Pixuf',
+            color: '#00ff00'
+        }).setOrigin(0.5);
+    }
+
+    function createLifeBar() {
+        // Create the outline container
+        lifeBarOutline = this.add.graphics();
+        lifeBarOutline.lineStyle(3, 0xff00ff, 1);
+        lifeBarOutline.strokeRect(BAR_X, BAR_Y, BAR_WIDTH, BAR_HEIGHT);
+
+        // Draw horizontal segment dividers
+        lifeBarOutline.lineStyle(2, 0x666666, 0.5);
+        for (let i = 1; i < MAX_LIFE_SEGMENTS; i++) {
+            const y = BAR_Y + (i * (BAR_HEIGHT / MAX_LIFE_SEGMENTS));
+            lifeBarOutline.lineBetween(BAR_X, y, BAR_X + BAR_WIDTH, y);
+        }
+
+        // Create the fill graphics (this will be updated)
+        lifeBarGraphics = this.add.graphics();
+    }
+    
+    function updateLifeBar() {
+        if (!lifeBarGraphics) return;
+        
+        lifeBarGraphics.clear();
+        
+        // Calculate fill height based on lives percentage
+        const fillHeight = (lives / 100) * BAR_HEIGHT;
+        
+        if (fillHeight > 0) {
+            lifeBarGraphics.fillStyle(0xff0000, 0.7); // Red fill
+            lifeBarGraphics.fillRect(
+                LEFT_BAR_X + 2,
+                BARS_Y + BAR_HEIGHT - fillHeight,
+                BAR_WIDTH - 4,
+                fillHeight - 2
+            );
+            
+            // Add darker segment lines on fill
+            lifeBarGraphics.lineStyle(1, 0xaa0000, 0.3);
+            for (let i = 1; i < MAX_SEGMENTS; i++) {
+                const segmentY = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
+                if (segmentY > BARS_Y + BAR_HEIGHT - fillHeight) {
+                    lifeBarGraphics.lineBetween(LEFT_BAR_X + 2, segmentY, LEFT_BAR_X + BAR_WIDTH - 2, segmentY);
+                }
+            }
+        }
+    }
+
+    // Update the progress bar (GREEN - fills from bottom to top)
+    function updateProgressBarVertical() {
+        if (!progressBarGraphics) return;
+        
+        progressBarGraphics.clear();
+        
+        // Calculate fill height based on progress
+        const fillHeight = (correctWordsInLevel / wordsNeededForNextLevel) * BAR_HEIGHT;
+        
+        if (fillHeight > 0) {
+            progressBarGraphics.fillStyle(0x00ff00, 0.7); // Green fill
+            progressBarGraphics.fillRect(
+                RIGHT_BAR_X + 2,
+                BARS_Y + BAR_HEIGHT - fillHeight,
+                BAR_WIDTH - 4,
+                fillHeight - 2
+            );
+            
+            // Add darker segment lines on fill
+            progressBarGraphics.lineStyle(1, 0x006600, 0.3);
+            for (let i = 1; i < MAX_SEGMENTS; i++) {
+                const segmentY = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
+                if (segmentY > BARS_Y + BAR_HEIGHT - fillHeight) {
+                    progressBarGraphics.lineBetween(RIGHT_BAR_X + 2, segmentY, RIGHT_BAR_X + BAR_WIDTH - 2, segmentY);
+                }
+            }
+        }
+    }
+
+    function updateProgressBar() {
+        // Only update the vertical progress bar now
+        updateProgressBarVertical.call(this);
+    }
+
+    function resetLifeBar() {
+        lives = 0;
+        // livesText.setText('LIVES: 0%');
+        updateLifeBar.call(this);
     }
 
     function gameOver() {
