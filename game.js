@@ -27,7 +27,6 @@ window.onload = function() {
     let wordsNeededForNextLevel = 20;
     let spawnTimer;
     let scoreText;
-    let livesText;
     let levelText;
     let inputText;
     let progressText;
@@ -54,11 +53,10 @@ window.onload = function() {
 
     // Bar configuration
     const MAX_SEGMENTS = 10;
-    const BAR_WIDTH = 60;
+    const BAR_WIDTH = 50;  // Changed from 60 to 50
     const BAR_HEIGHT = 350;
-    const BAR_SPACING = 10;
-    const LEFT_BAR_X = 45;  // Lives bar (left side)
-    const RIGHT_BAR_X = 125; // Progress bar (right side)
+    const HEALTH_BAR = 40;  // Changed from 45 to 40
+    const PROGRESS_BAR = 110; // Changed from 125 to 110
     const BARS_Y = 390;
 
     // Power-up collection system
@@ -73,6 +71,7 @@ window.onload = function() {
         this.load.image('shelf_bk', 'assets/left/bookcase_bk.png');
         this.load.image('progress_bk', 'assets/left/progress_bk.png');
         this.load.image('panel_divider', 'assets/left/left_panel_divider.png');
+        this.load.image('life_progress_bk', 'assets/left/life_progress_bk.png');
 
         // middle
         this.load.image('bk', 'assets/middle/bookcase_bk.png');
@@ -201,6 +200,9 @@ window.onload = function() {
         const panelDivider = this.add.tileSprite(100, 310, 180, 20, 'panel_divider');
         panelDivider.setDepth(-1);
         panelDivider.setScale(1.5);
+        const leftLifeProgressBk = this.add.image(100, 550, 'life_progress_bk');
+        leftLifeProgressBk.setDepth(-1); // Changed from -1 to -2 to ensure it's behind the bars
+        leftLifeProgressBk.setDisplaySize(160, 400); // Fit within the magenta box (20px margins)
 
         // Middle
         const middleBk = this.add.image(400, 400, 'bk');
@@ -1117,13 +1119,13 @@ window.onload = function() {
         // === LEFT BAR - LIVES (RED) ===
         lifeBarOutline = this.add.graphics();
         lifeBarOutline.lineStyle(2, 0xff0000, 1); // Red outline
-        lifeBarOutline.strokeRect(LEFT_BAR_X, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
+        lifeBarOutline.strokeRect(HEALTH_BAR, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
         
         // Draw horizontal segment dividers for lives bar
         lifeBarOutline.lineStyle(1, 0x666666, 0.5);
         for (let i = 1; i < MAX_SEGMENTS; i++) {
             const y = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
-            lifeBarOutline.lineBetween(LEFT_BAR_X, y, LEFT_BAR_X + BAR_WIDTH, y);
+            lifeBarOutline.lineBetween(HEALTH_BAR, y, HEALTH_BAR + BAR_WIDTH, y);
         }
         
         // Create the lives fill graphics
@@ -1132,26 +1134,26 @@ window.onload = function() {
         // === RIGHT BAR - PROGRESS (GREEN) ===
         progressBarOutline = this.add.graphics();
         progressBarOutline.lineStyle(2, 0x00ff00, 1); // Green outline
-        progressBarOutline.strokeRect(RIGHT_BAR_X, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
+        progressBarOutline.strokeRect(PROGRESS_BAR, BARS_Y, BAR_WIDTH, BAR_HEIGHT);
         
         // Draw horizontal segment dividers for progress bar
         progressBarOutline.lineStyle(1, 0x666666, 0.5);
         for (let i = 1; i < MAX_SEGMENTS; i++) {
             const y = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
-            progressBarOutline.lineBetween(RIGHT_BAR_X, y, RIGHT_BAR_X + BAR_WIDTH, y);
+            progressBarOutline.lineBetween(PROGRESS_BAR, y, PROGRESS_BAR + BAR_WIDTH, y);
         }
         
         // Create the progress fill graphics
         progressBarGraphics = this.add.graphics();
         
         // Add labels above each bar
-        this.add.text(LEFT_BAR_X + BAR_WIDTH/2, BARS_Y - 15, 'LIVES', {
+        this.add.text(HEALTH_BAR + BAR_WIDTH/2, BARS_Y - 15, 'LIVES', {
             fontSize: '14px',
             fontFamily: 'Pixuf',
             color: '#ff0000'
         }).setOrigin(0.5);
         
-        this.add.text(RIGHT_BAR_X + BAR_WIDTH/2, BARS_Y - 15, 'PROGRESS', {
+        this.add.text(PROGRESS_BAR + BAR_WIDTH/2, BARS_Y - 15, 'PROGRESS', {
             fontSize: '14px',
             fontFamily: 'Pixuf',
             color: '#00ff00'
@@ -1186,7 +1188,7 @@ window.onload = function() {
         if (fillHeight > 0) {
             lifeBarGraphics.fillStyle(0xff0000, 0.7); // Red fill
             lifeBarGraphics.fillRect(
-                LEFT_BAR_X + 2,
+                HEALTH_BAR + 2,
                 BARS_Y + BAR_HEIGHT - fillHeight,
                 BAR_WIDTH - 4,
                 fillHeight - 2
@@ -1197,7 +1199,7 @@ window.onload = function() {
             for (let i = 1; i < MAX_SEGMENTS; i++) {
                 const segmentY = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
                 if (segmentY > BARS_Y + BAR_HEIGHT - fillHeight) {
-                    lifeBarGraphics.lineBetween(LEFT_BAR_X + 2, segmentY, LEFT_BAR_X + BAR_WIDTH - 2, segmentY);
+                    lifeBarGraphics.lineBetween(HEALTH_BAR + 2, segmentY, HEALTH_BAR + BAR_WIDTH - 2, segmentY);
                 }
             }
         }
@@ -1215,7 +1217,7 @@ window.onload = function() {
         if (fillHeight > 0) {
             progressBarGraphics.fillStyle(0x00ff00, 0.7); // Green fill
             progressBarGraphics.fillRect(
-                RIGHT_BAR_X + 2,
+                PROGRESS_BAR + 2,
                 BARS_Y + BAR_HEIGHT - fillHeight,
                 BAR_WIDTH - 4,
                 fillHeight - 2
@@ -1226,7 +1228,7 @@ window.onload = function() {
             for (let i = 1; i < MAX_SEGMENTS; i++) {
                 const segmentY = BARS_Y + (i * (BAR_HEIGHT / MAX_SEGMENTS));
                 if (segmentY > BARS_Y + BAR_HEIGHT - fillHeight) {
-                    progressBarGraphics.lineBetween(RIGHT_BAR_X + 2, segmentY, RIGHT_BAR_X + BAR_WIDTH - 2, segmentY);
+                    progressBarGraphics.lineBetween(PROGRESS_BAR + 2, segmentY, PROGRESS_BAR + BAR_WIDTH - 2, segmentY);
                 }
             }
         }
